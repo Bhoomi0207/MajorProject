@@ -1,0 +1,37 @@
+stock-sentiment-project/
+├── data/                      
+├── models/                   
+├── config/                   
+│   └── config.py            
+├── src/
+│   ├── data_collection/     
+│   │   ├── __init__.py
+│   │   ├── twitter_api.py
+│   │   ├── stocktwits_api.py
+│   │   ├── yahoo_finance.py
+│   │   └── web_scraper.py
+│   ├── preprocessing/        
+│   │   ├── __init__.py
+│   │   └── text_processor.py
+│   ├── sentiment/            
+│   │   ├── __init__.py
+│   │   ├── basic_sentiment.py
+│   │   └── advanced_sentiment.py
+│   ├── sector_analysis/      
+│   │   ├── __init__.py
+│   │   └── sector_classifier.py
+│   ├── portfolio/            
+│   │   ├── __init__.py
+│   │   └── portfolio_scorer.py
+│   ├── fear_greed/          
+│   │   ├── __init__.py
+│   │   └── index_calculator.py
+│   ├── prediction/          
+│   │   ├── __init__.py
+│   │   ├── traditional_models.py
+│   │   └── deep_learning.py
+│   └── dashboard/           
+│       ├── __init__.py
+│       └── app.py
+├── main.py                   
+└── requirements.txt          
