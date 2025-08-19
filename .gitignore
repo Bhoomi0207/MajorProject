@@ -1,0 +1,72 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+sentiment_env/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# Data files
+*.csv
+*.xlsx
+*.json
+*.pkl
+*.h5
+!data/historical/*.csv
+!examples/*.csv
+!results/*.csv
+
+# Logs
+*.log
+logs/
+!test_data_collection.log
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# ML model files
+*.h5
+*.pkl
+!models/*.h5
+!results/*.pkl
+
+# Media files
+*.png
+*.jpg
+*.jpeg
+*.mp4
+!results/*.png
+!examples/*.png

@@ -1,0 +1,4 @@
+model,accuracy,precision,recall,f1
+random_forest_classification_Target_Direction_1d,0.98,0.9808695652173912,0.98,0.980040404040404
+xgboost_classification_Target_Direction_1d,0.98,0.9808695652173912,0.98,0.980040404040404
+svm_classification_Target_Direction_1d,0.92,0.93,0.92,0.9186666666666667
