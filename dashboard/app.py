@@ -33,9 +33,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] - %(
 logger = logging.getLogger(__name__)
 
 # Import local modules
-from dashboard.data_loader import StockDataLoader
-from dashboard.visualization import StockVisualizer
-from dashboard.sentiment_visualization import SentimentVisualizer
+from data_loader import StockDataLoader, fetch_news_api
+from visualization import StockVisualizer
+from sentiment_visualization import SentimentVisualizer
+sentiment_visualizer = SentimentVisualizer()
 
 # Try importing potentially problematic modules with fallbacks
 try:
@@ -1630,98 +1631,119 @@ def generate_prediction(n_clicks, ticker, days, model_type, start_date, end_date
 
 # Add callback for news feed section
 @app.callback(
+
     Output('news-feed', 'children'),
+
     [Input('stock-selector', 'value'),
+
      Input('tabs', 'active_tab')]
+
 )
+
 def update_news_feed(ticker, active_tab):
-    """Update the news feed section with news for the selected stock"""
-    # Only update when on news tab to save resources
+
+    """Update news feed using NewsAPI for the selected stock"""
+
     if active_tab != 'news-tab':
+
         return html.Div([
+
             html.P("Switch to News tab to view stock news", className="text-muted")
+
         ])
-    
+
+
+
     if not ticker:
+
         return html.Div([
+
             html.P("Please select a stock to view news", className="text-info")
+
         ])
-    
-    # Load news data
-    news_df = data_loader.load_news_data(ticker)
-    
+
+
+
+    # Fetch news via NewsAPI
+
+    news_df = fetch_news_api(ticker)
+
+
+
     if news_df is None or news_df.empty:
+
         return html.Div([
+
             html.P(f"No news data found for {ticker}", className="text-warning"),
-            html.P("Try selecting a different stock or check if news data is available", className="text-muted")
+
+            html.P("Try selecting a different stock or check your API key", className="text-muted")
+
         ])
-    
+
+
+
     # Create news cards
+
     news_items = []
-    
-    # Determine date column
-    date_col = next((col for col in news_df.columns if 'date' in col.lower() or 'published' in col.lower()), None)
-    
-    # Sort by date if available
-    if date_col:
-        news_df = news_df.sort_values(by=date_col, ascending=False)
-    
-    # Limit to 20 items for performance
+
     display_count = min(20, len(news_df))
+
+
+
     for i in range(display_count):
+
         item = news_df.iloc[i]
-        
-        # Get title
+
         title = item.get('title', 'No Title')
-        
-        # Get source and date
-        source = item.get('source', '')
-        date_str = ''
-        if date_col and pd.notna(item[date_col]):
-            date_val = item[date_col]
-            date_str = date_val if isinstance(date_val, str) else pd.to_datetime(date_val).strftime('%Y-%m-%d %H:%M')
-        
-        # Get summary/description
-        summary = ''
-        for col in ['summary', 'description', 'content']:
-            if col in item and pd.notna(item[col]):
-                summary = item[col]
-                break
-        
-        # Get link
-        link = ''
-        for col in ['link', 'url']:
-            if col in item and pd.notna(item[col]):
-                link = item[col]
-                break
-        
-        # Create card
-        card = dbc.Card([
-            dbc.CardBody([
-                html.H5(title, className="card-title"),
-                html.H6(f"{source} - {date_str}" if source and date_str else 
-                        (source if source else (date_str if date_str else "")), 
-                        className="card-subtitle mb-2 text-muted"),
-                html.P(summary[:200] + "..." if len(summary) > 200 else summary, className="card-text"),
-                html.A("Read More", href=link, target="_blank", className="card-link") if link else None
-            ])
-        ], className="mb-3")
-        
+
+        source = item.get('source', {}).get('name', '') if isinstance(item.get('source'), dict) else item.get('source', '')
+
+        date_val = item.get('publishedAt', '')
+
+        date_str = date_val.strftime('%Y-%m-%d %H:%M') if pd.notna(date_val) else ''
+
+        summary = item.get('description', '') or item.get('content', '') or ''
+
+        link = item.get('url', '')
+
+
+
+        card_body_children = [
+
+            html.H5(title, className="card-title"),
+
+            html.H6(f"{source} - {date_str}" if source and date_str else (source or date_str), className="card-subtitle mb-2 text-muted"),
+
+            html.P(summary[:200] + "..." if len(summary) > 200 else summary, className="card-text")
+
+        ]
+
+        if link:
+
+            card_body_children.append(html.A("Read More", href=link, target="_blank", className="card-link"))
+
+
+
+        card = dbc.Card(dbc.CardBody(card_body_children), className="mb-3")
+
         news_items.append(card)
-    
-    if not news_items:
-        return html.Div([
-            html.P(f"No news content available for {ticker}", className="text-warning")
-        ])
-    
-    # Create a refresh button and timestamp
+
+
+
     header = html.Div([
+
         html.Div([
+
             html.H4(f"Latest News for {ticker}", className="mb-0"),
-            html.Small(f"Showing {display_count} of {len(news_df)} articles", className="text-muted")
+
+            html.Small(f"Showing {display_count} articles", className="text-muted")
+
         ], className="d-flex justify-content-between align-items-center mb-3")
+
     ])
-    
+
+
+
     return html.Div([header] + news_items)
 
 # Add callback for sector analysis
@@ -2553,6 +2575,106 @@ def evaluate_model_accuracy(n_clicks, ticker, model_type, prediction_days, backt
         return empty_fig, html.Div(f"Error: {str(e)}"), html.Div(f"Error: {str(e)}", className="text-danger")
 
 
+# Callback for sentiment analysis
+@app.callback(
+    [Output('sentiment-gauge-chart', 'figure'),
+     Output('sentiment-timeline-chart', 'figure'),
+     Output('sentiment-word-cloud', 'figure'),
+     Output('sentiment-status', 'children')],
+    [Input('sentiment-analyze-button', 'n_clicks')],
+    [State('sentiment-stock-selector', 'value')]
+)
+def update_sentiment(n_clicks, ticker):
+    # Only update when button is clicked
+    if not n_clicks:
+        # Return empty figures on initial load
+        empty_fig = go.Figure()
+        empty_fig.update_layout(
+            annotations=[{
+                'text': "Click 'Analyze Sentiment' to view chart",
+                'showarrow': False,
+                'font': {'size': 16},
+                'xref': 'paper',
+                'yref': 'paper',
+                'x': 0.5,
+                'y': 0.5
+            }]
+        )
+        return empty_fig, empty_fig, empty_fig, "Click 'Analyze Sentiment' to view results"
+    
+    try:
+        logger.info(f"Generating sentiment analysis for {ticker}")
+        
+        # Generate sentiment score (a value between -1 and 1)
+        sentiment_score = np.random.uniform(-0.6, 0.8)  # Random score for testing
+        
+        # Create gauge chart
+        logger.info(f"Creating sentiment gauge chart with score: {sentiment_score}")
+        gauge_fig = sentiment_visualizer.create_sentiment_gauge(
+            sentiment_score, 
+            title=f"Overall Sentiment for {ticker}"
+        )
+        
+        # Generate dummy sentiment data
+        logger.info("Generating dummy sentiment data")
+        sentiment_df = sentiment_visualizer.generate_dummy_sentiment_data(ticker, days=30)
+        
+        # Create timeline chart
+        logger.info("Creating timeline chart")
+        timeline_fig = sentiment_visualizer.create_sentiment_timeline(
+            sentiment_df,
+            title=f"Sentiment Trend for {ticker}"
+        )
+        
+        # Generate word cloud text based on ticker
+        words = f"{ticker} stock market investing finance dividends growth value technical analysis"
+        
+        # Create word cloud
+        logger.info("Creating word cloud")
+        wordcloud_img = sentiment_visualizer.create_sentiment_wordcloud(
+            words,
+            title=f"Key Terms for {ticker}"
+        )
+        
+        # Convert wordcloud to Plotly figure
+        wordcloud_fig = go.Figure()
+        wordcloud_fig.add_layout_image(
+            dict(
+                source=wordcloud_img,
+                xref="paper", yref="paper",
+                x=0, y=1,
+                sizex=1, sizey=1,
+                sizing="stretch",
+                layer="below"
+            )
+        )
+        wordcloud_fig.update_layout(
+            title=f"Key Terms for {ticker}",
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            height=300
+        )
+        
+        logger.info("Successfully created all visualizations")
+        return gauge_fig, timeline_fig, wordcloud_fig, f"Analysis completed for {ticker}"
+        
+    except Exception as e:
+        logger.error(f"Error in sentiment visualization: {e}", exc_info=True)
+        error_fig = go.Figure()
+        error_fig.update_layout(
+            title="Error",
+            annotations=[{
+                'text': f"An error occurred: {str(e)}",
+                'showarrow': False,
+                'font': {'size': 16},
+                'xref': 'paper',
+                'yref': 'paper',
+                'x': 0.5,
+                'y': 0.5
+            }]
+        )
+        error_message = f"Error: {str(e)}"
+        return error_fig, error_fig, error_fig, error_message
 
 
 
